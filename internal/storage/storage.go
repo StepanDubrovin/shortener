@@ -1,8 +1,11 @@
 package storage
 
 import (
+	"errors"
 	"strconv"
 )
+
+var ErrNotFound = errors.New("url not found")
 
 type Store struct {
 	urls   map[string]string
@@ -25,8 +28,12 @@ func (s *Store) Save(url string) (string, error) {
 	return id, nil
 }
 
-func (s *Store) Get(code string) (string, bool) {
+func (s *Store) Get(code string) (string, error) {
 	value, ok := s.urls[code]
 
-	return value, ok
+	if !ok {
+		return "", ErrNotFound
+	}
+
+	return value, nil
 }

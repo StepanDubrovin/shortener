@@ -2,22 +2,30 @@ package httpserver
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+
+	"github.com/StepanDubrovin/shortener/internal/storage"
 )
 
 type URLStore interface {
 	Save(url string) (string, error)
-	Get(code string) (string, bool)
+	Get(code string) (string, error)
 }
 
 func Redirect(store URLStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := r.PathValue("code")
 
-		url, ok := store.Get(code)
+		url, err := store.Get(code)
 
-		if !ok {
+		if errors.Is(err, storage.ErrNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+
+		if err != nil {
+			http.Error(w, "failed to get url", http.StatusInternalServerError)
 			return
 		}
 
