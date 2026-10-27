@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"strconv"
@@ -30,12 +31,12 @@ func New(dsn string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
-func (s *Store) Save(url string) (string, error) {
+func (s *Store) Save(ctx context.Context, url string) (string, error) {
 	query := `INSERT INTO urls (url) VALUES ($1) RETURNING id`
 
 	var id int64
 
-	err := s.db.QueryRow(query, url).Scan(&id)
+	err := s.db.QueryRowContext(ctx, query, url).Scan(&id)
 
 	if err != nil {
 		return "", err
@@ -44,7 +45,7 @@ func (s *Store) Save(url string) (string, error) {
 	return strconv.FormatInt(id, 10), nil
 }
 
-func (s *Store) Get(code string) (string, error) {
+func (s *Store) Get(ctx context.Context, code string) (string, error) {
 	id, err := strconv.ParseInt(code, 10, 64)
 
 	if err != nil || id <= 0 {
@@ -55,7 +56,7 @@ func (s *Store) Get(code string) (string, error) {
 
 	var url string
 
-	err = s.db.QueryRow(query, id).Scan(&url)
+	err = s.db.QueryRowContext(ctx, query, id).Scan(&url)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", storage.ErrNotFound

@@ -1,23 +1,33 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/StepanDubrovin/shortener/internal/storage"
 )
 
 type URLStore interface {
-	Save(url string) (string, error)
-	Get(code string) (string, error)
+	Save(ctx context.Context, url string) (string, error)
+	Get(ctx context.Context, code string) (string, error)
 }
 
 func Redirect(store URLStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := r.PathValue("code")
 
-		url, err := store.Get(code)
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
+		url, err := store.Get(ctx, code)
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, "storage timeout", http.StatusGatewayTimeout)
+			return
+		}
 
 		if errors.Is(err, storage.ErrNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
@@ -50,7 +60,15 @@ func Shorten(store URLStore) http.HandlerFunc {
 			return
 		}
 
-		code, err := store.Save(req.URL)
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
+		code, err := store.Save(ctx, req.URL)
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, "storage timeout", http.StatusGatewayTimeout)
+			return
+		}
 
 		if err != nil {
 			http.Error(w, "failed to save url", http.StatusInternalServerError)

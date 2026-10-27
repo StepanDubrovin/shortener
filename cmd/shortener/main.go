@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	httpserver "github.com/StepanDubrovin/shortener/internal/http-server"
 	"github.com/StepanDubrovin/shortener/internal/storage/postgres"
@@ -29,8 +34,46 @@ func main() {
 
 	mux.HandleFunc("GET /{code}", httpserver.Redirect(store))
 
-	log.Println("сервер: http://localhost:8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		log.Print(err)
+	stopCtx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
 	}
+
+	serverErr := make(chan error, 1)
+
+	log.Println("сервер: http://localhost:8080")
+
+	go func() {
+		serverErr <- server.ListenAndServe()
+	}()
+
+	select {
+	case <-stopCtx.Done():
+		log.Println("shutdown requested")
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Println("server error: ", err)
+		}
+		return
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = server.Shutdown(shutdownCtx)
+
+	if err != nil {
+		log.Println("shutdown error: ", err)
+		server.Close()
+		return
+	}
+
+	log.Println("server stopped")
 }
