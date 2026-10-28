@@ -69,6 +69,34 @@ func (s *Store) Get(ctx context.Context, code string) (string, error) {
 	return url, nil
 }
 
+func (s *Store) Delete(ctx context.Context, code string) error {
+	id, err := strconv.ParseInt(code, 10, 64)
+
+	if err != nil || id <= 0 {
+		return storage.ErrNotFound
+	}
+
+	query := `DELETE FROM urls WHERE id = $1`
+
+	result, err := s.db.ExecContext(ctx, query, id)
+
+	if err != nil {
+		return err
+	}
+
+	affected, err := result.RowsAffected()
+
+	if err != nil {
+		return err
+	}
+
+	if affected == 0 {
+		return storage.ErrNotFound
+	}
+
+	return nil
+}
+
 func (s *Store) Close() error {
 	return s.db.Close()
 }

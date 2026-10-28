@@ -34,6 +34,10 @@ func main() {
 
 	mux.HandleFunc("GET /{code}", httpserver.Redirect(store))
 
+	mux.HandleFunc("GET /api/links/{code}", httpserver.GetLink(store))
+
+	mux.HandleFunc("DELETE /api/links/{code}", httpserver.DeleteLink(store))
+
 	stopCtx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
